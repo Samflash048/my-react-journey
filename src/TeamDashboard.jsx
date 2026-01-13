@@ -36,28 +36,46 @@ function TeamDashboard() {
     e.preventDefault();
     if (!newName || !newRole) return;
 
+    // 1. Create a "Temporary" Member with a fake ID
+    const tempId = Date.now().toString();
+    const newMember = {
+      id: tempId,
+      name: newName,
+      role: newRole,
+      email: newEmail || "No email"
+    };
+
+    // 2. ⚡ OPTIMISTIC UPDATE: Show it on screen INSTANTLY
+    setMembers((prevMembers) => [...prevMembers, newMember]);
+    
+    // 3. Clear the form instantly so you can type the next one
+    setNewName("");
+    setNewRole("");
+    setNewEmail("");
+
     try {
+      // 4. Send to Cloud in the background (User doesn't wait for this)
       const docRef = await addDoc(collection(db, "members"), {
-        name: newName,
-        role: newRole,
-        email: newEmail || "No email",
+        name: newMember.name,
+        role: newMember.role,
+        email: newMember.email,
       });
 
-      setMembers([...members, { 
-        id: docRef.id, 
-        name: newName, 
-        role: newRole, 
-        email: newEmail || "No email" 
-      }]);
+      // 5. Silent Swap: Replace the "fake ID" with the "real Google ID"
+      setMembers((prevMembers) => 
+        prevMembers.map((member) => 
+          member.id === tempId ? { ...member, id: docRef.id } : member
+        )
+      );
 
-      setNewName("");
-      setNewRole("");
-      setNewEmail("");
     } catch (error) {
       console.error("Error adding document: ", error);
+      alert("Failed to save to cloud! Removing item.");
+      // Rollback: If it failed, remove the item from the list
+      setMembers((prevMembers) => prevMembers.filter((m) => m.id !== tempId));
     }
   };
-  
+
   // 3. DELETE DATA from Firebase
   const deleteMember = async (id) => {
     try {
